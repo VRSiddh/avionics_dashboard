@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rocket Avionics Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Sci-fi Fonts -->
+  <link href="https://fonts.googleapis.com/css?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.3/dist/chart.umd.min.js"></script>
+  <style>
+:root {
+  --accent: #18ffea;
+  --accent-light: #38faff;
+  --panel: #15202b;
+  --panel-glass: rgba(21,32,43,0.74);
+  --panel-blur: blur(10px);
+  --green: #00f7a4;
+  --danger: #ff3870;
+  --orange: #ffde38;
+  --light-bg: #232d3a;
+  --orbitron: 'Orbitron', 'Segoe UI', Arial, sans-serif;
+  --mono: 'Share Tech Mono', 'Consolas', monospace;
+}
+body {
+  background: linear-gradient(120deg, #17192f 0%, #232b41 50%, #0a0b17 100%);
+  min-height: 100vh;
+  font-family: var(--mono);
+  color: #adefff;
+  letter-spacing: 0.9px;
+  overflow-x: hidden;
+  position: relative;
+}
+body::before, body::after {
+  content: " ";
+  position: absolute; left:0; top:0; width:100%; height:100%;
+  background: repeating-radial-gradient(circle at 35% 40%,rgba(255,255,255,.025) 1px,transparent 2px,transparent 70px),
+              repeating-radial-gradient(circle at 65% 70%,rgba(255,255,255,.04) 1px,transparent 2px,transparent 90px);
+  pointer-events:none; z-index:0;
+}
+.container {
+  margin: 2rem auto;
+  max-width: 1280px;
+  background: var(--panel-glass);
+  border-radius: 25px;
+  box-shadow: 0 8px 30px #00fff033, 0 2px 8px #0005, 0 0px 0px #0ff8;
+  padding: 2.5rem 2.5rem 1.5rem;
+  position: relative;
+  backdrop-filter: var(--panel-blur);
+  border: 2px solid #222c39a6;
+  z-index: 3;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2.5rem;
+  gap: 2vw;
+  flex-wrap: wrap;
+}
+.logo {
+  font-family: var(--orbitron);
+  font-size: 2.45rem;
+  font-weight: 900;
+  letter-spacing: .05em;
+  background: linear-gradient(90deg, #01f9ff 27%, #19ffbe 57%, #2494fa 85%);
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  text-shadow: 0 5px 16px #0fd0ff50;
+}
+.status, .flight-timer {
+  font-family: var(--orbitron);
+  font-weight: 800;
+  border-radius: 9px;
+  padding: 0.48em 1.25em;
+  margin-right: 1.1em;
+  transition: background 0.35s;
+  letter-spacing: 1.1px;
+  font-size: 1.28em;
+  box-shadow: 0 0px 7px #18fff430;
+}
+.status { background: linear-gradient(90deg, #00f7a4, #2cfaff 80%); color: #222c32; }
+.status.disconnected { background: linear-gradient(90deg, #420b32, #183a4c 90%); color: #fe9e9e;}
+.status.running { background: linear-gradient(90deg,#ffde38 12%,#00ffd9 100%); color:#181c27;}
+.status.ended { background: linear-gradient(90deg, #b2AEC7 23%, #878cb4 86%); color:#1a212d;}
+.flight-timer { 
+  background: #191f2c;
+  color: #ffe484;
+  box-shadow: 0 0 17px #87ffe7a9;
+}
+.controls button {
+  margin-left: 0.85em;
+  font-size: 1.05rem;
+  font-family: var(--orbitron);
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #2cfaff 10%, #198ff9 100%);
+  border: none;
+  color: #002020;
+  font-weight: 800;
+  padding: .56em 1.33em;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 16px #0ff7, 0 0px 0px #39f4;
+  letter-spacing: 1.6px;
+  border: 1.5px solid #23bfbf70;
+  transition: background .24s, filter .18s, box-shadow .2s;
+}
+.controls button[disabled] { opacity: 0.53; filter: grayscale(1); cursor:not-allowed;}
+.controls button:active { filter:brightness(1.07) contrast(1.1) drop-shadow(0 0 8px #38d6ff60); }
+.charts { display: flex; gap: 2.1rem; flex-wrap: wrap; margin-top: 2.7rem; justify-content:center; }
+.chart-card {
+  background:rgba(21,32,45,0.89);
+  border-radius: 16px;
+  border: 1.4px solid #35e6f122;
+  box-shadow: 0 2px 26px #13fff955, 0 .5px 8px #003ad470;
+  padding: 1.3rem 1.7rem;
+  flex: 1 1 360px;
+  max-width: 420px;
+  min-width: 270px;
+  min-height: 350px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.chart-title {
+  font-size: 1.22rem;
+  font-family: var(--orbitron);
+  background: linear-gradient(90deg, #00f7a4 0%, #00bfff 85%);
+  color: transparent;
+  -webkit-background-clip: text; background-clip: text;
+  margin-bottom: 1.05em; font-weight:900; letter-spacing:0.8px;
+  text-shadow:0 0 11px #10ffaa60;
+}
+canvas { 
+  background: #191f25 radial-gradient(circle at 50% 60%, #2ee7ff11 0 35%, transparent 70%);
+  border-radius: 10px;
+  box-shadow: 0 2px 12px #13fff922;
+}
+.data-table {
+  width: 100%; border-collapse: collapse; margin-top: 2.7rem;
+  color: #bfe7ff;background:rgba(16,21,28,0.61);
+  border-radius: 8px;box-shadow: 0 0 21px #11f2fd10;
+  overflow:hidden; font-family:var(--mono);
+}
+.data-table th, .data-table td {
+  padding: .53em .9em; border: none; text-align: left; font-size: 1.07em;
+}
+.data-table th {
+  background: #003970b0; color: #0ff0b0;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+}
+ .data-table tr:nth-child(even) { background: #192344a0;}
+ .data-table td { font-family:var(--mono); }
+
+ /* Responsive Design */
+ @media (max-width: 1200px) {
+   .container { max-width: 95%; margin: 1.5rem auto; }
+   .charts { gap: 1.8rem; }
+ }
+
+ @media (max-width: 1100px) { 
+   .charts { flex-direction: column; gap: 1.6rem; align-items: center; }
+   .chart-card { max-width: 500px; min-width: 300px; }
+ }
+
+ @media (max-width: 900px) {
+   header { 
+     flex-direction: column; 
+     gap: 1.5rem; 
+     text-align: center;
+     align-items: center;
+   }
+   .logo { font-size: 2rem; }
+   .status, .flight-timer { 
+     font-size: 1.1rem; 
+     padding: 0.4em 1em;
+     margin: 0 0.5em;
+   }
+   .controls { 
+     display: flex; 
+     flex-wrap: wrap; 
+     justify-content: center; 
+     gap: 0.5rem;
+   }
+   .controls button { 
+     margin-left: 0; 
+     font-size: 0.95rem;
+     padding: 0.5em 1em;
+   }
+ }
+
+ @media (max-width: 768px) {
+   .container { 
+     padding: 1.5rem 1rem; 
+     margin: 1rem auto;
+     border-radius: 20px;
+   }
+   .chart-card { 
+     padding: 1rem 1.2rem;
+     min-width: 280px;
+     max-width: 100%;
+   }
+   .chart-title { font-size: 1.1rem; }
+   .data-table { 
+     font-size: 0.9rem; 
+     margin-top: 2rem;
+   }
+   .data-table th, .data-table td { 
+     padding: 0.4em 0.7em; 
+     font-size: 0.95rem;
+   }
+ }
+
+ @media (max-width: 640px) {
+   .container { 
+     padding: 1rem 0.8rem; 
+     margin: 0.5rem auto;
+     border-radius: 15px;
+   }
+   .logo { font-size: 1.6rem; }
+   .status, .flight-timer { 
+     font-size: 1rem; 
+     padding: 0.35em 0.8em;
+     margin: 0.3em;
+   }
+   .controls { 
+     flex-direction: column; 
+     width: 100%;
+     max-width: 200px;
+   }
+   .controls button { 
+     width: 100%;
+     margin: 0.2em 0;
+     font-size: 0.9rem;
+     padding: 0.6em 1em;
+   }
+   .chart-card { 
+     padding: 0.8rem 1rem;
+     min-width: 250px;
+     min-height: 300px;
+   }
+   .chart-title { font-size: 1rem; margin-bottom: 0.8em; }
+   .data-table { 
+     font-size: 0.85rem;
+     margin-top: 1.5rem;
+   }
+   .data-table th, .data-table td { 
+     padding: 0.3em 0.5em; 
+     font-size: 0.9rem;
+   }
+ }
+
+ @media (max-width: 480px) {
+   .container { 
+     padding: 0.8rem 0.6rem; 
+     margin: 0.3rem auto;
+   }
+   .logo { font-size: 1.4rem; }
+   .status, .flight-timer { 
+     font-size: 0.9rem; 
+     padding: 0.3em 0.6em;
+     margin: 0.2em;
+   }
+   .chart-card { 
+     padding: 0.6rem 0.8rem;
+     min-width: 220px;
+     min-height: 280px;
+   }
+   .chart-title { font-size: 0.95rem; }
+   .data-table { 
+     font-size: 0.8rem;
+     margin-top: 1.2rem;
+   }
+   .data-table th, .data-table td { 
+     padding: 0.25em 0.4em; 
+     font-size: 0.85rem;
+   }
+ }
+
+ @media (max-width: 360px) {
+   .container { 
+     padding: 0.6rem 0.4rem; 
+     margin: 0.2rem auto;
+   }
+   .logo { font-size: 1.2rem; }
+   .status, .flight-timer { 
+     font-size: 0.8rem; 
+     padding: 0.25em 0.5em;
+   }
+   .chart-card { 
+     padding: 0.5rem 0.6rem;
+     min-width: 200px;
+     min-height: 250px;
+   }
+   .chart-title { font-size: 0.9rem; }
+   .data-table { 
+     font-size: 0.75rem;
+     margin-top: 1rem;
+   }
+   .data-table th, .data-table td { 
+     padding: 0.2em 0.3em; 
+     font-size: 0.8rem;
+   }
+ }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">Rocket Flight Control</div>
+      <span class="flight-timer" id="flight_timer">Flight Time: 00:00.0</span>
+      <span class="status disconnected" id="status_lbl">Disconnected</span>
+      <span class="controls">
+        <button id="btn_connect">Connect</button>
+        <button id="btn_disconnect" disabled>Disconnect</button>
+        <button id="btn_launch" disabled>Launch</button>
+        <button id="btn_reset">Reset</button>
+      </span>
+    </header>
+
+    <div class="charts">
+      <div class="chart-card">
+        <div class="chart-title">Altitude (meters)</div>
+        <canvas id="altitude_chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Velocity (m/s)</div>
+        <canvas id="velocity_chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Acceleration (m/s²)</div>
+        <canvas id="accel_chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Euler Angles (deg)</div>
+        <canvas id="attitude_chart"></canvas>
+      </div>
+    </div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Altitude</td><td id="td_alt">—</td></tr>
+        <tr><td>Velocity</td><td id="td_vel">—</td></tr>
+        <tr><td>Acceleration</td><td id="td_acc">—</td></tr>
+        <tr><td>Roll</td><td id="td_roll">—</td></tr>
+        <tr><td>Pitch</td><td id="td_pitch">—</td></tr>
+        <tr><td>Yaw</td><td id="td_yaw">—</td></tr>
+        <tr><td>Latitude</td><td id="td_lat">—</td></tr>
+        <tr><td>Longitude</td><td id="td_lon">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // UI state
+    let ws = null;
+    let launched = false;
+    let maxLen = 200;
+    let flightStart = null;
+    let flightTimerID = null;
+
+    // Chart.js setup
+    const altCtx = document.getElementById('altitude_chart').getContext('2d');
+    const velCtx = document.getElementById('velocity_chart').getContext('2d');
+    const accCtx = document.getElementById('accel_chart').getContext('2d');
+    const eulerCtx = document.getElementById('attitude_chart').getContext('2d');
+
+    const altData = { labels: [], datasets: [{ label: "Altitude", data: [], borderColor: "#23d160", tension: 0.12, fill: true, backgroundColor: "rgba(35,209,96,0.08)" }] };
+    const velData = { labels: [], datasets: [{ label: "Velocity", data: [], borderColor: "#209cee", tension: 0.15, fill: true, backgroundColor: "rgba(32,156,238,0.08)" }] };
+    const accData = { labels: [], datasets: [{ label: "Accel", data: [], borderColor: "#ff3860", tension: 0.17, fill: true, backgroundColor: "rgba(255,56,96,0.08)" }] };
+    const eulerData = {
+      labels: [], datasets: [
+        { label: "Roll", data: [], borderColor: "#F6C915", tension: 0.2 },
+        { label: "Pitch", data: [], borderColor: "#15F686", tension: 0.2 },
+        { label: "Yaw", data: [], borderColor: "#1689FA", tension: 0.2 }
+      ]
+    };
+
+    const altChart = new Chart(altCtx, { type: 'line', data: altData, options: baseChartOptions("meters") });
+    const velChart = new Chart(velCtx, { type: 'line', data: velData, options: baseChartOptions("m/s") });
+    const accChart = new Chart(accCtx, { type: 'line', data: accData, options: baseChartOptions("m/s²") });
+    const eulerChart = new Chart(eulerCtx, { type: 'line', data: eulerData, options: baseChartOptions("deg") });
+
+    function baseChartOptions(unit) {
+      return {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { display: false } },
+          y: { grid: { color: "rgba(255,255,255,0.1)" }, title: { display: true, text: unit, color: "#7be4e2" } }
+        }
+      }
+    }
+
+    // FLIGHT TIMER LOGIC
+    function startFlightTimer() {
+      flightStart = Date.now();
+      updateFlightTimer();
+      if (flightTimerID) clearInterval(flightTimerID);
+      flightTimerID = setInterval(updateFlightTimer, 97);
+    }
+         function stopFlightTimer() {
+       if (flightTimerID) clearInterval(flightTimerID);
+     }
+     function resetFlightTimer() {
+       if (flightTimerID) clearInterval(flightTimerID);
+       flightStart = null;
+       let timerSpan = document.getElementById('flight_timer');
+       timerSpan.textContent = "Flight Time: 00:00.0";
+     }
+    function updateFlightTimer() {
+      let timerSpan = document.getElementById('flight_timer');
+      if (!flightStart) { timerSpan.textContent = "Flight Time: 00:00.0"; return; }
+      let elapsedMs = Date.now() - flightStart;
+      let sec = Math.floor((elapsedMs / 1000) % 60);
+      let min = Math.floor((elapsedMs / (1000 * 60)) % 60);
+      let tenths = Math.floor((elapsedMs % 1000) / 100);
+      timerSpan.textContent = `Flight Time: ${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${tenths}`;
+    }
+
+    // UI hooks
+    document.getElementById('btn_connect').onclick = async function () {
+      await fetch('http://127.0.0.1:8000/api/connect', { method: 'POST' });
+      setStatus("Connected", "");
+      this.disabled = true;
+      document.getElementById('btn_disconnect').disabled = false;
+      document.getElementById('btn_launch').disabled = false;
+      connectWebSocket();
+    }
+    document.getElementById('btn_disconnect').onclick = async function () {
+      await fetch('http://127.0.0.1:8000/api/disconnect', { method: 'POST' });
+      setStatus("Disconnected", "disconnected");
+      document.getElementById('btn_connect').disabled = false;
+      document.getElementById('btn_disconnect').disabled = true;
+      document.getElementById('btn_launch').disabled = true;
+      resetCharts();
+      stopFlightTimer();
+      if (ws) ws.close();
+    }
+    document.getElementById('btn_launch').onclick = async function () {
+      await fetch('http://127.0.0.1:8000/api/launch', { method: 'POST' });
+      launched = true;
+      setStatus("In Air!", "running");
+      this.disabled = true;
+      startFlightTimer();
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "start" }))
+    }
+          document.getElementById('btn_reset').onclick = async function () {
+        await fetch('http://127.0.0.1:8000/api/reset', { method: 'POST' });
+        setStatus("Disconnected", "disconnected");
+        document.getElementById('btn_connect').disabled = false;
+        document.getElementById('btn_disconnect').disabled = true;
+        document.getElementById('btn_launch').disabled = true;
+        resetCharts();
+        resetFlightTimer();
+        if (ws) ws.close();
+      }
+
+    function setStatus(lbl, colorClass) {
+      let e = document.getElementById('status_lbl');
+      e.textContent = lbl;
+      e.className = `status ${colorClass || ""}`;
+    }
+
+    function connectWebSocket() {
+      ws = new WebSocket("ws://" + location.hostname + ":8000/ws/telemetry");
+      ws.onopen = () => { console.log("WebSocket open"); };
+      ws.onclose = evt => {
+        console.log("WebSocket closed", evt);
+        setStatus("Disconnected", "disconnected");
+        stopFlightTimer();
+      };
+      ws.onerror = err => {
+        console.error("WebSocket error!", err);
+        setStatus("WS Error", "ended");
+        stopFlightTimer();
+      };
+      ws.onmessage = evt => {
+        let data = JSON.parse(evt.data);
+        if (data.done) {
+          setStatus("Landed", "ended");
+          stopFlightTimer();
+          return;
+        }
+        updateCharts(data);
+        updateReadouts(data);
+      };
+    }
+
+    function resetCharts() {
+      [altData, velData, accData].forEach(d => { d.labels.length = 0; d.datasets[0].data.length = 0; });
+      eulerData.labels.length = 0;
+      eulerData.datasets.forEach(d => d.data.length = 0);
+      altChart.update(); velChart.update(); accChart.update(); eulerChart.update();
+    }
+
+    function updateCharts(d) {
+      let t = new Date().toLocaleTimeString().split(' ');
+      pushData(altData, d.altitude, t);
+      pushData(velData, d.velocity, t);
+      pushData(accData, d.acceleration, t);
+      pushEuler(eulerData, d.roll, d.pitch, d.yaw, t);
+      altChart.update(); velChart.update(); accChart.update(); eulerChart.update();
+    }
+          function pushData(buf, y, t) {
+        if (!buf || !buf.datasets || !buf.datasets[0]) return;
+        buf.labels.push(t);
+        buf.datasets[0].data.push(y);
+        if (buf.labels.length > maxLen) {
+          buf.labels.shift();
+          buf.datasets[0].data.shift();
+        }
+      }
+          function pushEuler(buf, roll, pitch, yaw, t) {
+        if (!buf || !buf.datasets || !buf.datasets[0]) return;
+        buf.labels.push(t);
+        buf.datasets[0].data.push(roll);
+        buf.datasets[1].data.push(pitch);
+        buf.datasets[2].data.push(yaw);
+        if (buf.labels.length > maxLen) {
+          buf.labels.shift(); buf.datasets.forEach(ds => ds.data.shift());
+        }
+      }
+    function updateReadouts(d) {
+      document.getElementById('td_alt').textContent = d.altitude?.toFixed(2) + ' m';
+      document.getElementById('td_vel').textContent = d.velocity?.toFixed(2) + ' m/s';
+      document.getElementById('td_acc').textContent = d.acceleration?.toFixed(2) + ' m/s²';
+      document.getElementById('td_roll').textContent = d.roll?.toFixed(2) + '°';
+      document.getElementById('td_pitch').textContent = d.pitch?.toFixed(2) + '°';
+      document.getElementById('td_yaw').textContent = d.yaw?.toFixed(2) + '°';
+      document.getElementById('td_lat').textContent = d.lat?.toFixed(5);
+      document.getElementById('td_lon').textContent = d.lon?.toFixed(5);
+    }
+  </script>
+</body>
+</html>
